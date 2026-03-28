@@ -350,12 +350,13 @@ class ProfileManagePage(QWidget):
         if not ci_manager:
             return
 
-        result = self.binding_backend.sync(profile)
+        ok = self.binding_backend.sync(profile)
         profile.save(PROFILE_PATH)
 
-        if result.errors:
-            content = "；".join(result.errors[:3])
-            if len(result.errors) > 3:
+        if not ok:
+            errors = self.binding_backend.last_errors
+            content = "；".join(errors[:3]) if errors else "请检查 ClassIsland 状态与配置"
+            if len(errors) > 3:
                 content += "；..."
             InfoBar.error(
                 title="关联同步存在失败项",
