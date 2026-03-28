@@ -57,7 +57,7 @@ class CVAutomator(PyAutoGuiBaseAutomator):
             self.click(account_login_button)
             time.sleep(config.Login.Timeout.SwitchTab)
         except LoginError:
-            logger.warning("未能识别到账号登录按钮，尝试识别已选中样式")
+            logger.warning("未能识别到账号登录按钮, 尝试识别已选中样式")
             account_login_button = self.find_control("account_login_button")
 
         # 输入账号

@@ -149,7 +149,7 @@ class Profile(BaseModel):
         if not path.exists():
             profile = cls()
             profile.save(path)
-            logger.info(f"档案文件 {path} 不存在，自动生成")
+            logger.info(f"档案文件 {path} 不存在, 自动生成")
             return profile
 
         try:
@@ -163,15 +163,15 @@ class Profile(BaseModel):
                 try:
                     item.password = decrypt_password(item.password)
                 except Exception as e:
-                    logger.error(f"解密账号 {item.account} 的密码失败，已清空密码: {e}")
+                    logger.error(f"解密账号 {item.account} 的密码失败, 已清空密码: {e}")
                     item.password = ""
             removed = loaded.cleanup_invalid_bindings()
             if removed:
-                logger.warning(f"检测到 {removed} 条失效关联，已自动清理并写回")
+                logger.warning(f"检测到 {removed} 条失效关联, 已自动清理并写回")
                 loaded.save(path)
             return loaded
         except Exception as e:
-            logger.error(f"档案文件解析失败，按新结构强制重建: {e}")
+            logger.error(f"档案文件解析失败, 按新结构强制重建: {e}")
             rebuilt = cls()
             rebuilt.save(path)
             return rebuilt

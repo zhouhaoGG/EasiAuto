@@ -76,7 +76,7 @@ class BaseAutomator(QThread, metaclass=QABCMeta):
                     logger.debug(f"自动获取到路径: {path_str}")
             except Exception:
                 path_str = r"C:\Program Files (x86)\Seewo\EasiNote5\swenlauncher\swenlauncher.exe"
-                logger.warning("自动获取路径失败，使用默认路径")
+                logger.warning("自动获取路径失败, 使用默认路径")
         else:
             path_str = config.Login.EasiNote.Path
             logger.debug(f"使用设置的路径: {path_str}")
@@ -90,7 +90,7 @@ class BaseAutomator(QThread, metaclass=QABCMeta):
             target_list.append("EasiAgent")
         if extra := config.Login.EasiNote.ExtraKills:
             target_list += extra.split(",")
-        logger.debug(f"要终止的目标进程：{target_list}")
+        logger.debug(f"要终止的目标进程: {target_list}")
 
         for target in target_list:
             kill_process(
@@ -224,7 +224,7 @@ class BaseAutomator(QThread, metaclass=QABCMeta):
 
                 if retries <= config.App.MaxRetries:
                     logger.error(f"登录过程中发生错误\n{type(e).__name__}: {e}")
-                    logger.warning(f"将在2s后重试（尝试 {retries}/{config.App.MaxRetries}）")
+                    logger.warning(f"将在2s后重试 (尝试 {retries}/{config.App.MaxRetries}) ")
                     time.sleep(2)
                 else:
                     logger.critical(f"{retries}次尝试均登录失败\n{type(e).__name__}: {e}")
@@ -242,7 +242,7 @@ class PyAutoGuiBaseAutomator(BaseAutomator):
             logger.warning("已强制启用兼容模式输入")
             self.compatibility_mode = True
         elif screen_size[1] / scale < 720:
-            logger.info("检测到屏幕高度较低，启用兼容模式输入")
+            logger.info("检测到屏幕高度较低, 启用兼容模式输入")
             self.compatibility_mode = True
 
     def input(self, text: str, clear: bool = True, is_secret: bool = False):

@@ -101,7 +101,7 @@ class ConfigModel(BaseModel):
     def save(self):
         root = self._root()
         if root._file is None:
-            logger.warning("配置文件路径为空，无法保存")
+            logger.warning("配置文件路径为空, 无法保存")
             return
         try:
             data = root.model_dump(mode="json")
@@ -594,7 +594,7 @@ class Config(ConfigModel):
 
             return obj
         except Exception as e:
-            logger.warning(f"迁移失败，跳过迁移：{e}")
+            logger.warning(f"迁移失败, 跳过迁移: {e}")
             return backup_obj
 
     @classmethod
@@ -608,13 +608,13 @@ class Config(ConfigModel):
                 data = cls.migrate_config(raw)
                 cfg = cls(**data)
             except Exception as e:
-                logger.critical(f"配置文件 {file} 解析失败\n错误信息：{e}")
+                logger.critical(f"配置文件 {file} 解析失败\n错误信息: {e}")
                 stop(1)
         else:
             cfg = cls()
             data = cfg.model_dump(mode="json")
             path.write_text(json.dumps(data, ensure_ascii=False, indent=4), encoding="utf-8")
-            logger.info(f"配置文件 {file} 不存在，自动生成")
+            logger.info(f"配置文件 {file} 不存在, 自动生成")
 
         cfg.attach(path)
 
@@ -643,12 +643,12 @@ class Config(ConfigModel):
         - "Login.Timeout"（将整个子配置重置为默认实例）
         返回值：成功返回 True，失败返回 False
         """
-        logger.info(f"正在重置配置路径：{path}")
+        logger.info(f"正在重置配置路径: {path}")
         self._initialized = False
 
         parts = tuple(p for p in path.split(".") if p)
         if not parts:
-            logger.warning("重置失败：路径为空")
+            logger.warning("重置失败: 路径为空")
             self._initialized = True
             return False
 
@@ -659,7 +659,7 @@ class Config(ConfigModel):
         try:
             for key in parts[:-1]:
                 if not hasattr(self_parent, key) or not hasattr(default_parent, key):
-                    logger.error(f"重置失败：无效路径 {path}")
+                    logger.error(f"重置失败: 无效路径 {path}")
                     self._initialized = True
                     return False
                 self_parent = getattr(self_parent, key)
@@ -667,7 +667,7 @@ class Config(ConfigModel):
 
             final = parts[-1]
             if not hasattr(default_parent, final):
-                logger.error(f"重置失败：无效路径 {path}")
+                logger.error(f"重置失败: 无效路径 {path}")
                 self._initialized = True
                 return False
 
@@ -681,7 +681,7 @@ class Config(ConfigModel):
         self._bind_children()
         self._initialized = True
         self.save()
-        logger.info(f"已重置配置路径：{path}")
+        logger.info(f"已重置配置路径: {path}")
         return True
 
 

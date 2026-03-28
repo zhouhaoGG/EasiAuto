@@ -206,7 +206,7 @@ class UpdateContentView(QWidget):
                 label.setWordWrap(True)
                 self.others_layout.addWidget(label)
         except Exception as e:
-            logger.warning(f"显示更新日志时发生错误：{e}")
+            logger.warning(f"显示更新日志时发生错误: {e}")
             self.placeholder_label.setVisible(True)
             self.highlights_title.setVisible(False)
             self.others_title.setVisible(False)

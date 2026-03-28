@@ -67,9 +67,9 @@ class PostLoginUpdateThread(QThread):
                         icon_src=utils.get_resource("EasiAuto.ico"),
                     )
         except UpdateError as e:
-            logger.warning(f"检查更新时发生异常，已跳过：{e}")
+            logger.warning(f"检查更新时发生异常, 已跳过: {e}")
         except Exception as e:
-            logger.error(f"检查更新时发生未预期异常，已跳过：{e}")
+            logger.error(f"检查更新时发生未预期异常, 已跳过: {e}")
 
 
 class Launcher:
@@ -216,18 +216,18 @@ class Launcher:
         if args.account and args.password:
             return args.account, args.password
 
-        logger.error("参数错误：使用 --account 时必须同时提供 --password")
+        logger.error("参数错误: 使用 --account 时必须同时提供 --password")
         return None
 
     def _start_login(self, args: Namespace) -> bool:
         """启动登录任务；若已有任务在运行则拒绝"""
         from_ipc = self._ipc_context
         if self.login_running:
-            logger.warning("登录任务已在执行中，拒绝新的 login 请求")
+            logger.warning("登录任务已在执行中, 拒绝新的 login 请求")
             return False
 
         if config.Login.SkipOnce:
-            logger.info("已通过配置文件禁用，正在退出")
+            logger.info("已通过配置文件禁用, 正在退出")
             config.Login.SkipOnce = False
             if not from_ipc:
                 utils.stop()
@@ -249,25 +249,25 @@ class Launcher:
                     response = msgbox.countdown(config.Warning.Timeout)
                     match response:
                         case DialogResponse.CANCEL:
-                            logger.info("用户取消操作，正在退出")
+                            logger.info("用户取消操作, 正在退出")
                             if not from_ipc:
                                 utils.stop()
                             return False
                         case DialogResponse.CONTINUE:
-                            logger.info("用户确认继续，继续执行")
+                            logger.info("用户确认继续, 继续执行")
                             break
                         case DialogResponse.TIMEOUT:
-                            logger.info("等待超时，继续执行")
+                            logger.info("等待超时, 继续执行")
                             break
                         case DialogResponse.DELAY:
-                            logger.info(f"用户选择推迟，等待 {config.Warning.DelayTime} 秒...")
+                            logger.info(f"用户选择推迟, 等待 {config.Warning.DelayTime} 秒...")
                             delays += 1
                             time.sleep(config.Warning.DelayTime)
                             continue
                         case unreachable:
                             assert_never(unreachable)
             except Exception:
-                logger.error("显示警告弹窗时出错，跳过警告")
+                logger.error("显示警告弹窗时出错, 跳过警告")
 
         if config.Banner.Enabled:
             try:
@@ -276,7 +276,7 @@ class Launcher:
                 self.banner.setGeometry(0, 80, width, 140)
                 self.banner.show()
             except Exception as e:
-                logger.error(f"显示横幅时出错，跳过横幅：{e}")
+                logger.error(f"显示横幅时出错, 跳过横幅: {e}")
 
         logger.debug(f"当前设置的登录方案: {config.Login.Method}")
         self._current_login_triggered_via_ipc = from_ipc
@@ -300,7 +300,7 @@ class Launcher:
                 automation_manager.task_updated.connect(self.status_overlay.set_task_text)
                 automation_manager.progress_updated.connect(self.status_overlay.set_progress_text)
             except Exception as e:
-                logger.error(f"设置状态浮窗时出错，跳过状态浮窗：{e}")
+                logger.error(f"设置状态浮窗时出错, 跳过状态浮窗: {e}")
 
         automation_manager.run(*credentials)
 
@@ -332,7 +332,7 @@ class Launcher:
             logger.success("已更新配置文件")
             return
 
-        logger.success("已更新配置文件，正在退出")
+        logger.success("已更新配置文件, 正在退出")
         utils.stop()
 
     def _dispatch_command(self, args: Namespace) -> None:
@@ -360,7 +360,7 @@ class Launcher:
         try:
             args = parser.parse_args(argv[1:])
         except SystemExit:
-            logger.warning(f"收到无效参数，已忽略: {argv!r}")
+            logger.warning(f"收到无效参数, 已忽略: {argv!r}")
             return
         if (command := getattr(args, "command", None)) not in FORWARDABLE_COMMANDS:
             logger.warning(f"忽略不被允许的 IPC 命令: {command!r}")
@@ -375,10 +375,10 @@ class Launcher:
             if forwarded:
                 logger.info(f"已将参数转发到主实例: {command}")
                 utils.stop(0)
-            logger.warning("检测到已有实例，但参数转发失败")
+            logger.warning("检测到已有实例, 但参数转发失败")
             utils.stop(1)
 
-        logger.info(f"检测到已有实例，命令 {command!r} 不允许转发，当前实例退出")
+        logger.info(f"检测到已有实例, 命令 {command!r} 不允许转发, 当前实例退出")
         utils.stop(0)
 
     def _notify_updated(self, command: str | None) -> None:
@@ -389,7 +389,7 @@ class Launcher:
             try:
                 last_version = Version(config.Update.LastVersion)
             except Exception as e:
-                logger.warning(f"解析上个版本时发生异常：{e}")
+                logger.warning(f"解析上个版本时发生异常: {e}")
             else:
                 if last_version < Version(__version__):
                     cleanup_update_cache()

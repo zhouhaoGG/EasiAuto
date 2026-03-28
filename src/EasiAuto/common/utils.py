@@ -243,7 +243,7 @@ def kill_process(name: str, force: bool = False, wait: bool = False, timeout: fl
                 process.kill()
             else:
                 process.terminate()
-            logger.info(f"已向进程 {name} 发送{'强行' if force else ''}终止信号{'，等待中……' if wait else ''}")
+            logger.info(f"已向进程 {name} 发送{'强行' if force else ''}终止信号{', 等待中……' if wait else ''}")
 
             try:
                 process.wait(timeout)

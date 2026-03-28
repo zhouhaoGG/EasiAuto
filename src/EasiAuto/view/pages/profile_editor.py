@@ -508,7 +508,7 @@ class ProfileManagePage(QWidget):
             logger.error(f"无法找到自动化: {automation_id}")
 
         self.runAutomation.emit(automation.account, automation.password)
-        logger.info(f"信号已发送：运行自动化 {automation.id}")
+        logger.info(f"信号已发送: 运行自动化 {automation.id}")
 
     def _handle_action_export(self, automation_id: str) -> None:
         if not (automation := profile.get_by_id(automation_id)):
@@ -560,7 +560,7 @@ class ProfileManagePage(QWidget):
 
             logger.info(f"已跳转到档案编辑: {automation_id}")
             return True
-        logger.warning(f"跳转失败：找不到 ID 为 {automation_id} 的档案")
+        logger.warning(f"跳转失败: 找不到 ID 为 {automation_id} 的档案")
         return False
 
     def refresh_binding_display(self):

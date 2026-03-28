@@ -81,7 +81,7 @@ def _focus_existing_instance(current_pid: int) -> bool:
             continue
         title = win32gui.GetWindowText(hwnd)
         if _bring_window_to_front(hwnd):
-            logger.warning(f"检测到已运行实例，已尝试切换到该窗口: pid={pid}, title={title!r}")
+            logger.warning(f"检测到已运行实例, 已尝试切换到该窗口: pid={pid}, title={title!r}")
             return True
     return False
 

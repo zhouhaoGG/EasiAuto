@@ -44,14 +44,14 @@ def get_key() -> bytes:
     try:
         key = read_key()
     except Exception as e:
-        raise RuntimeError("读取本地密钥文件失败，无法获取档案密钥") from e
+        raise RuntimeError("读取本地密钥文件失败, 无法获取档案密钥") from e
 
     if not key:
         key = Fernet.generate_key().decode("ascii")
         try:
             write_key(key)
         except Exception as e:
-            raise RuntimeError("写入本地密钥文件失败，无法保存档案密钥") from e
+            raise RuntimeError("写入本地密钥文件失败, 无法保存档案密钥") from e
         logger.info("首次运行已生成档案密钥并写入本地文件")
 
     KEY_CACHE = key.encode("ascii")

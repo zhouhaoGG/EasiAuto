@@ -231,7 +231,7 @@ class UpdateChecker(QObject):
 
         # 1. 检查本地是否存在
         if out_path.exists() and item.sha256 and self._check_sha256(out_path, item.sha256):
-            logger.info(f"文件已存在且校验通过，跳过下载: {out_path}")
+            logger.info(f"文件已存在且校验通过, 跳过下载: {out_path}")
             if on_progress:
                 # 模拟进度完成
                 size = out_path.stat().st_size
@@ -293,10 +293,10 @@ class UpdateChecker(QObject):
 
         if available:
             self.auto_selected_source = min(available, key=lambda x: x[1])[0]
-            logger.success(f"成功检测下载源延迟，已选中 {self.auto_selected_source.display_name}")
+            logger.success(f"成功检测下载源延迟, 已选中 {self.auto_selected_source.display_name}")
         else:
             self.auto_selected_source = DownloadSource.GITHUB
-            logger.warning(f"无法检测下载源延迟，回退至 {self.auto_selected_source.display_name}")
+            logger.warning(f"无法检测下载源延迟, 回退至 {self.auto_selected_source.display_name}")
 
         return result
 
@@ -333,7 +333,7 @@ class UpdateChecker(QObject):
             with zipfile.ZipFile(zip_path, "r") as z:
                 z.extractall(extract_dir)
         except zipfile.BadZipFile as e:
-            raise UpdateError("解压失败，文件可能已损坏") from e
+            raise UpdateError("解压失败, 文件可能已损坏") from e
 
         extract_root = self._normalize_extract_root(extract_dir)
 
@@ -365,7 +365,7 @@ class UpdateChecker(QObject):
         ]
 
         script.write_text("\r\n".join(script_content), encoding="utf-8")
-        logger.success(f"已生成更新脚本： {script} ")
+        logger.success(f"已生成更新脚本: {script} ")
 
         self._update_script_path = script
         return script.resolve()
@@ -374,7 +374,7 @@ class UpdateChecker(QObject):
         """执行更新脚本（通常此时应退出主程序）"""
 
         if IS_DEV:
-            logger.warning("检测到开发环境，为防止删除源代码，已禁止执行更新脚本")  # 为什么会有这个防护，好难猜啊
+            logger.warning("检测到开发环境, 为防止删除源代码, 已禁止执行更新脚本")  # 为什么会有这个防护，好难猜啊
             return
 
         if self._update_script_path and self._script_reopen == reopen:
@@ -611,7 +611,7 @@ class UpdateChecker(QObject):
 
         # 仅在当前包通道不是 default 时，才回退到 default
         if not downloads and config.Update.TargetPackageChannel != PackageChannel.DEFAULT:
-            logger.warning(f"未找到 {config.Update.TargetPackageChannel.value} 分支的下载项，回退至 default 分支")
+            logger.warning(f"未找到 {config.Update.TargetPackageChannel.value} 分支的下载项, 回退至 default 分支")
             downloads = tuple(d for d in all_downloads if d.channel == PackageChannel.DEFAULT.value)
 
         if not downloads:
@@ -653,11 +653,11 @@ class UpdateChecker(QObject):
         available = [(source, latency) for source, latency in results.items() if latency is not None]
 
         if not available:
-            logger.warning("镜像源延迟检测失败，回退至 GitHub 直连")
+            logger.warning("镜像源延迟检测失败, 回退至 GitHub 直连")
             return DownloadSource.GITHUB
 
         selected_source, selected_latency = min(available, key=lambda x: x[1])
-        logger.info(f"自动选择下载源：{selected_source.display_name} ({selected_latency * 1000:.0f} ms)")
+        logger.info(f"自动选择下载源: {selected_source.display_name} ({selected_latency * 1000:.0f} ms)")
         return selected_source
 
     def _ensure_auto_selected_source(self, *, is_init: bool) -> None:
@@ -688,7 +688,7 @@ class UpdateChecker(QObject):
         try:
             self._auto_select_source()
         except Exception as e:
-            logger.warning(f"初始化下载源失败，已回退默认直连: {e}")
+            logger.warning(f"初始化下载源失败, 已回退默认直连: {e}")
 
     def _set_latency_probe_running(self, value: bool) -> None:
         self._latency_probe_running = value
@@ -842,7 +842,7 @@ class UpdateChecker(QObject):
         try:
             return resp.json()
         except ValueError as e:
-            raise UpdateError(f"更新清单 JSON 解析失败：{e!s}") from e
+            raise UpdateError(f"更新清单 JSON 解析失败: {e!s}") from e
 
 
 update_checker = UpdateChecker()
@@ -868,4 +868,4 @@ def cleanup_update_cache() -> None:
             logger.warning(f"清理更新缓存失败: {item} -> {e}")
 
     if removed_files or removed_dirs:
-        logger.info(f"已清理更新缓存: 文件 {removed_files} 个，目录 {removed_dirs} 个")
+        logger.info(f"已清理更新缓存: 文件 {removed_files} 个, 目录 {removed_dirs} 个")

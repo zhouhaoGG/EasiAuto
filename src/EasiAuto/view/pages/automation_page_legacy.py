@@ -598,7 +598,7 @@ class AutomationManageSubpage(QWidget):
             return
 
         self.runAutomation.emit(automation.account, automation.password)
-        logger.info(f"信号已发送：运行自动化 {automation.guid}")
+        logger.info(f"信号已发送: 运行自动化 {automation.guid}")
 
     def _handle_action_export(self, guid: str):
         """操作 - 导出自动化"""
@@ -897,7 +897,7 @@ class AutomationPage(QWidget):
             except Exception as e:
                 logger.warning(f"ClassIsland 管理器初始化失败: {e}")
         else:
-            logger.warning(f"{'未找到 ClassIsland 路径' if not exe_path else '路径无效'}，跳过初始化")
+            logger.warning(f"{'未找到 ClassIsland 路径' if not exe_path else '路径无效'}, 跳过初始化")
 
         self.init_ui()
         self.start_watcher()
@@ -931,7 +931,7 @@ class AutomationPage(QWidget):
     def start_watcher(self):
         """启动 ClassIsland 运行状态监听"""
         if not ci_manager:
-            logger.debug("管理器未初始化，跳过状态监听")
+            logger.debug("管理器未初始化, 跳过状态监听")
             return
 
         if hasattr(ci_manager, "watcher"):

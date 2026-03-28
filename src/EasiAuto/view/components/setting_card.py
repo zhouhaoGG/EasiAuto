@@ -331,7 +331,7 @@ class SettingCard(QFrame):
     def _on_value_changed(self, value: Any):
         """值变化处理"""
         if self.config_item and self._initialized:
-            logger.debug(f"设置修改：({self.config_item.path}) {self.config_item.value} -> {value}")
+            logger.debug(f"设置修改: ({self.config_item.path}) {self.config_item.value} -> {value}")
             self.config_item.value = value
         if self.card_type == CardType.RANGE:  # 同步数值标签
             self.valueLabel.setNum(value)
@@ -474,7 +474,7 @@ class SettingCard(QFrame):
             try:
                 icon = FluentIcon(icon_name)
             except ValueError:
-                logger.warning(f"无法加载图标：{icon_name}")
+                logger.warning(f"无法加载图标: {icon_name}")
                 icon = None
 
         kwargs: dict[str, Any] = {}
