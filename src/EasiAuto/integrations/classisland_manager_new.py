@@ -1,6 +1,5 @@
 import json
 import shlex
-from copy import deepcopy
 from pathlib import Path
 from typing import cast
 
@@ -9,11 +8,11 @@ import win32api
 import win32con
 import win32event
 from loguru import logger
-from pydantic import AliasPath, BaseModel, ConfigDict, Field, PrivateAttr, model_validator
+from pydantic import AliasPath, BaseModel, ConfigDict, Field
 
 from PySide6.QtCore import QObject, Signal
 
-from EasiAuto.common.consts import EA_PREFIX
+from EasiAuto.common.consts import EA_EXECUTABLE, EA_PREFIX
 
 
 class CiSubject(BaseModel):
@@ -21,48 +20,27 @@ class CiSubject(BaseModel):
     name: str
 
 
-class CiAutomation(BaseModel):
-    """基本 ClassIsland 自动化"""
+class ManagedCiAutomation(BaseModel):
+    """受管理的 ClassIsland 自动化"""
 
     model_config = ConfigDict(validate_by_name=True)
-    _raw_data: dict = PrivateAttr(default_factory=dict)
 
     guid: str = Field(validation_alias=AliasPath("ActionSet", "Guid"))
     name: str = Field(validation_alias=AliasPath("ActionSet", "Name"))
-
-    @model_validator(mode="before")
-    @classmethod
-    def capture_raw_data(cls, data: dict) -> dict:
-        cls._raw_data = data
-        return data
-
-    def dump_ci_dict(self) -> dict:
-        return self._raw_data
-
-    @property
-    def is_managed(self) -> bool:
-        return self.name.startswith(EA_PREFIX)
-
-
-class ManagedCiAutomation(CiAutomation):
-    """受管理的 ClassIsland 自动化"""
-
     is_enabled: bool = Field(validation_alias=AliasPath("ActionSet", "IsEnabled"))
     subject_id: str = Field(validation_alias=AliasPath("Ruleset", "Groups", 0, "Rules", 0, "Settings", "SubjectId"))
     pretime: int = Field(validation_alias=AliasPath("Triggers", 0, "Settings", "TimeSeconds"))
     args: str = Field(validation_alias=AliasPath("ActionSet", "Actions", 0, "Settings", "Args"))
 
-    def dump_ci_dict(self) -> dict:
-        result = deepcopy(self._raw_data)
-
-        result["ActionSet"]["Guid"] = self.guid
-        result["ActionSet"]["Name"] = self.name
-        result["ActionSet"]["IsEnabled"] = self.is_enabled
-        result["ActionSet"]["Actions"][0]["Settings"]["Args"] = self.args
-        result["Ruleset"]["Groups"][0]["Rules"][0]["Settings"]["SubjectId"] = self.subject_id
-        result["Triggers"][0]["Settings"]["TimeSeconds"] = self.pretime
-
-        return result
+    def dump(self) -> dict:
+        return self.build_ci_raw(
+            guid=self.guid,
+            name=self.name,
+            is_enabled=self.is_enabled,
+            subject_id=self.subject_id,
+            pretime=self.pretime,
+            args=self.args,
+        )
 
     def get_arg(self, flag: str) -> str | None:
         try:
@@ -85,15 +63,89 @@ class ManagedCiAutomation(CiAutomation):
     def id(self) -> str | None:
         return self.get_arg("id")
 
+    @staticmethod
+    def build_ci_raw(
+        guid: str,
+        name: str,
+        is_enabled: bool,
+        subject_id: str | list[str],
+        pretime: int,
+        args: str,
+    ) -> dict:
+        rule_next: list[dict] = []  # 下节课是...
+        rule_pre: list[dict] = []  # 上节课不是...
+        for subject in subject_id if isinstance(subject_id, list) else [subject_id]:
+            if not subject:
+                raise ValueError("Subject ID 不能为空")
+            rule_next.append(
+                {
+                    "IsReversed": False,
+                    "Id": "classisland.lessons.nextSubject",
+                    "Settings": {"SubjectId": subject_id},
+                }
+            )
+            rule_pre.append(
+                {
+                    "IsReversed": True,
+                    "Id": "classisland.lessons.previousSubject",
+                    "Settings": {"SubjectId": subject_id},
+                }
+            )
+
+        return {
+            "Ruleset": {
+                "Mode": 1,  # AND
+                "IsReversed": False,
+                "Groups": [
+                    {
+                        "Rules": rule_next,
+                        "Mode": 0,  # OR
+                        "IsReversed": False,
+                        "IsEnabled": True,
+                    },
+                    {
+                        "Rules": rule_pre,
+                        "Mode": 0,  # OR
+                        "IsReversed": False,
+                        "IsEnabled": True,
+                    },
+                ],
+            },
+            "ActionSet": {
+                "IsEnabled": is_enabled,
+                "Name": name,
+                "Guid": guid,
+                "IsOn": False,
+                "Actions": [
+                    {
+                        "Id": "classisland.os.run",
+                        "Settings": {
+                            "Value": str(EA_EXECUTABLE),
+                            "Args": args,
+                        },
+                    }
+                ],
+                "IsRevertEnabled": False,
+            },
+            "Triggers": [
+                {
+                    "Id": "classisland.lessons.preTimePoint",
+                    "Settings": {"TargetState": 1, "TimeSeconds": pretime},
+                }
+            ],
+            "IsConditionEnabled": True,
+        }
+
 
 class ClassIslandManager(QObject):
     automationChanged = Signal()
 
     def __init__(self, exe_path: Path | str):
         super().__init__()
+
         self.exe_path = Path(exe_path)
         if not self.exe_path.exists():
-            raise FileNotFoundError(f"ClassIsland 程序不存在: {exe_path}")
+            raise FileNotFoundError(f"ClassIsland 可执行文件不存在: {self.exe_path}")
 
         self.is_v2 = self._check_is_v2()
         self.ci_settings: dict = {}
@@ -140,16 +192,20 @@ class ClassIslandManager(QObject):
 
             self._resolve_automations()
         except Exception as e:
-            logger.error(f"重新加载 ClassIsland 配置时出错: {e}")
+            raise RuntimeError("加载 ClassIsland 配置时出错") from e
 
     def _resolve_automations(self) -> None:
         """将原始自动化按照受管理状态分离"""
         self.unmanaged_automations = []
         self.managed_automations = []
         for raw in self.ci_automations_raw:
-            if CiAutomation(**raw).is_managed:
-                self.managed_automations.append(ManagedCiAutomation(**raw))
-            else:
+            try:
+                if raw.get("ActionSet", {}).get("Name", "").startswith(EA_PREFIX):
+                    self.managed_automations.append(ManagedCiAutomation(**raw))
+                else:
+                    self.unmanaged_automations.append(raw)
+            except Exception as e:
+                logger.warning(f"解析 ClassIsland 自动化时出错: {e}")
                 self.unmanaged_automations.append(raw)
 
     def get_automations(self) -> list[ManagedCiAutomation]:
@@ -161,7 +217,7 @@ class ClassIslandManager(QObject):
         try:
             output = self.unmanaged_automations
             for auto in automations:
-                output.append(auto.dump_ci_dict())
+                output.append(auto.dump())
 
             content = json.dumps(output)
             self.current_automation_path.write_text(content, encoding="utf-8")
