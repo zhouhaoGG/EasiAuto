@@ -31,7 +31,7 @@ class PreRunPopup(Dialog):
 
     def __init__(self):
         super().__init__(title="EasiAuto", content="将在 N/A 秒后继续执行")
-        self.setWindowIcon(QIcon(get_resource("EasiAuto.ico")))
+        self.setWindowIcon(QIcon(get_resource("icons/EasiAuto.ico")))
 
         self.response: DialogResponse | None = None
 
@@ -41,7 +41,7 @@ class PreRunPopup(Dialog):
 
         # 文本
         self.iconLabel = ImageLabel()
-        self.iconLabel.setImage(get_resource("EasiAuto.ico"))
+        self.iconLabel.setImage(get_resource("icons/EasiAuto.ico"))
         self.iconLabel.setScaledContents(True)
         self.iconLabel.setFixedSize(50, 50)
 

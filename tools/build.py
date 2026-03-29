@@ -51,7 +51,7 @@ def run_nuitka(build_type: Literal["full", "lite"]):
         "--remove-output",
         # ------ Windows 配置 ------
         "--windows-console-mode=disable",
-        "--windows-icon-from-ico=resources/EasiAuto.ico",
+        "--windows-icon-from-ico=resources/icons/EasiAuto.ico",
         f"--company-name={COMPANY_NAME}",
         f"--product-name={APP_NAME}",
         f"--product-version={VERSION.base_version}",

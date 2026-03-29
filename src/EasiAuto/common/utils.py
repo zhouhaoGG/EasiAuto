@@ -144,7 +144,7 @@ def create_shortcut(args: str, name: str, show_result_to: QWidget | None = None)
         shortcut.TargetPath = str(EA_EXECUTABLE)
         shortcut.Arguments = args
         shortcut.WorkingDirectory = str(EA_BASEDIR)
-        shortcut.IconLocation = get_resource("EasiAutoShortcut.ico")
+        shortcut.IconLocation = get_resource("icons/EasiAutoShortcut.ico")
         shortcut.Save()
 
         logger.success("创建成功")

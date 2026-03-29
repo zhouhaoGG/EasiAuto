@@ -54,7 +54,7 @@ class MainWindow(MSFluentWindow):
 
     def _init_window(self):
         self.setObjectName("MainWindow")
-        self.setWindowIcon(QIcon(get_resource("EasiAuto.ico")))
+        self.setWindowIcon(QIcon(get_resource("icons/EasiAuto.ico")))
         self.setWindowTitle("EasiAuto")
         self.setMinimumSize(800, 500)
         self.resize(960, 640)

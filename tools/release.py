@@ -568,7 +568,7 @@ class ReleaseGUI(FluentWindow):
     def __init__(self):
         super().__init__()
         setTheme(Theme.AUTO)
-        self.setWindowIcon(QIcon("src/EasiAuto/resources/EasiAuto.ico"))
+        self.setWindowIcon(QIcon("src/EasiAuto/resources/icons/EasiAuto.ico"))
         self.setWindowTitle("EasiAuto 发版工具")
         self.resize(800, 720)
 

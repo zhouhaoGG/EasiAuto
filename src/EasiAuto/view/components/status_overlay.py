@@ -211,7 +211,7 @@ class StatusOverlay(StatusOverlayBase):
         bottom_layout.setSpacing(8)
 
         self.logo = ImageLabel(self.bottom)
-        self.logo.setImage(get_resource("EasiAuto.ico"))
+        self.logo.setImage(get_resource("icons/EasiAuto.ico"))
         self.logo.setFixedSize(32, 32)
         self.logo.setScaledContents(True)
 

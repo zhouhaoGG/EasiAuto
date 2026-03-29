@@ -467,7 +467,7 @@ class UpdatePage(QWidget):
                     body=f"新版本：{self._decision.target_version}\n打开应用查看详细信息",
                     icon_placement=windows11toast.IconPlacement.APP_LOGO_OVERRIDE,
                     icon_hint_crop=windows11toast.IconCrop.NONE,
-                    icon_src=utils.get_resource("EasiAuto.ico"),
+                    icon_src=utils.get_resource("icons/EasiAuto.ico"),
                 )
                 self.content_widget.set_change_log(self._decision.change_log)
                 if config.Update.Mode >= UpdateMode.CHECK_AND_DOWNLOAD and not self._decision.confirm_required:

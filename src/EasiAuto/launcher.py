@@ -64,7 +64,7 @@ class PostLoginUpdateThread(QThread):
                         body=f"新版本：{decision.target_version}\n打开应用查看详细信息",
                         icon_placement=windows11toast.IconPlacement.APP_LOGO_OVERRIDE,
                         icon_hint_crop=windows11toast.IconCrop.NONE,
-                        icon_src=utils.get_resource("EasiAuto.ico"),
+                        icon_src=utils.get_resource("icons/EasiAuto.ico"),
                     )
         except UpdateError as e:
             logger.warning(f"检查更新时发生异常, 已跳过: {e}")
@@ -155,7 +155,7 @@ class Launcher:
                 body=f"{error_message}\n检查日志以获取详细信息",
                 icon_placement=windows11toast.IconPlacement.APP_LOGO_OVERRIDE,
                 icon_hint_crop=windows11toast.IconCrop.NONE,
-                icon_src=utils.get_resource("EasiAuto.ico"),
+                icon_src=utils.get_resource("icons/EasiAuto.ico"),
             )
 
         self._post_login_overlay_done = self.status_overlay is None
@@ -403,7 +403,7 @@ class Launcher:
                         body=f"{config.Update.LastVersion} -> {__version__}",
                         icon_placement=windows11toast.IconPlacement.APP_LOGO_OVERRIDE,
                         icon_hint_crop=windows11toast.IconCrop.NONE,
-                        icon_src=utils.get_resource("EasiAuto.ico"),
+                        icon_src=utils.get_resource("icons/EasiAuto.ico"),
                     )
         config.Update.LastVersion = __version__
 

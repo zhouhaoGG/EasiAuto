@@ -101,7 +101,7 @@ class ErrorDialog(Dialog):  # 重大错误提示框
 
         self.iconLabel = ImageLabel()
         try:
-            self.iconLabel.setImage(get_resource("EasiAuto.ico"))
+            self.iconLabel.setImage(get_resource("icons/EasiAuto.ico"))
         except Exception:
             logger.warning("未能加载崩溃报告图标")
         self.error_log = PlainTextEdit()
