@@ -111,9 +111,8 @@ class BaseAutomator(QThread, metaclass=QABCMeta):
         """枚举所有顶层窗口"""
 
         def callback(hwnd, windows):
-            # if win32gui.IsWindowVisible(hwnd):  # 只获取可见窗口
             window_text = win32gui.GetWindowText(hwnd)
-            class_name = win32gui.GetClassName(hwnd)
+            class_name = win32gui.GetClassName(hwnd) or ""
             if window_text or "easinote" in class_name.lower():
                 windows.append((hwnd, window_text, class_name))
             return True

@@ -40,33 +40,9 @@ default = true
 
 [tool.pyright]
 autoImportCompletions = true
-exclude = ["**/.venv", "**/__pycache__", "build", "**/node_modules", "**/.*"]
-include = ["**/*.py"]
+include = ["src"]
 pythonVersion = "3.12"
-reportArgumentType = "warning"
-reportAttributeAccessIssue = "none"
-reportDuplicateImport = "warning"
-reportGeneralTypeIssues = "warning"
-reportImportCycles = "warning"
-reportIncompatibleMethodOverride = "warning"
-reportIncompatibleVariableOverride = "warning"
-reportMissingParameterType = "none"
-reportMissingTypeStubs = "none"
-reportOptionalCall = "none"
-reportOptionalMemberAccess = "none"
-reportOptionalSubscript = "none"
-reportOverlappingOverload = "warning"
-reportPrivateUsage = "none"
-reportSelfClsParameterName = "none"
-reportUnusedClass = "none"
-reportUnusedFunction = "none"
-reportUnusedImport = "none"
-reportUnusedVariable = "none"
-strictDictionaryInference = false
-strictListInference = false
-strictSetInference = false
 typeCheckingMode = "standard"
-useLibraryCodeForTypes = true
 
 [[tool.pyright.executionEnvironments]]
 "extraPaths" = ["./vendors", "./resources"]
