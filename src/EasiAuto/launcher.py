@@ -84,10 +84,11 @@ class Launcher:
         self.ipc_server: ArgvIpcServer | None = None
         self._ipc_context: bool = False
         self._current_login_triggered_via_ipc: bool = False
-        self._last_login_triggered_via_ipc: bool = False
         self._post_login_overlay_done: bool = False
         self._post_login_update_done: bool = False
         self._post_login_update_thread: PostLoginUpdateThread | None = None
+        automation_manager.finished.connect(self._on_login_finished)
+        automation_manager.failed.connect(self._on_login_failed)
 
         # TODO: 考虑简化状态
 
@@ -131,11 +132,9 @@ class Launcher:
 
     def _on_login_finished(self, success: bool = True, error_message: str | None = None) -> None:
         """登录结束后的回调"""
-        from_ipc = self._current_login_triggered_via_ipc
-        self._last_login_triggered_via_ipc = from_ipc
-
         if not self.login_running:
             return
+        from_ipc = self._current_login_triggered_via_ipc
         self.login_running = False
         logger.info("登录任务已停止运行")
 
@@ -169,35 +168,37 @@ class Launcher:
         )
 
         if not self._post_login_overlay_done:
-            QTimer.singleShot(3000, self._close_status_overlay)
+            QTimer.singleShot(3000, lambda: self._close_status_overlay(from_ipc))
 
         if not self._post_login_update_done:
             self._post_login_update_thread = PostLoginUpdateThread()
-            self._post_login_update_thread.finished.connect(self._on_post_login_update_check_finished)
+            self._post_login_update_thread.finished.connect(lambda: self._on_post_login_update_check_finished(from_ipc))
             self._post_login_update_thread.start()
 
         self._maybe_exit_after_login(from_ipc)
 
-    def _close_status_overlay(self) -> None:
+    def _on_login_failed(self, error_message: str) -> None:
+        self._on_login_finished(success=False, error_message=error_message)
+
+    def _close_status_overlay(self, from_ipc: bool) -> None:
         if self.status_overlay is not None:
             self.status_overlay.close()
             self.status_overlay.deleteLater()
             self.status_overlay = None
         self._post_login_overlay_done = True
-        self._maybe_exit_after_login(from_ipc=self._last_login_triggered_via_ipc)
+        self._maybe_exit_after_login(from_ipc)
 
-    def _on_post_login_update_check_finished(self) -> None:
+    def _on_post_login_update_check_finished(self, from_ipc: bool) -> None:
         if self._post_login_update_thread is not None:
             self._post_login_update_thread.deleteLater()
             self._post_login_update_thread = None
         self._post_login_update_done = True
-        self._maybe_exit_after_login(self._last_login_triggered_via_ipc)
+        self._maybe_exit_after_login(from_ipc)
 
     def _maybe_exit_after_login(self, from_ipc: bool) -> None:
         if from_ipc:
             return
         if self._post_login_overlay_done and self._post_login_update_done:
-            self._last_login_triggered_via_ipc = False
             utils.stop()
 
     def _on_stop_automation(self) -> None:
@@ -285,9 +286,6 @@ class Launcher:
 
         logger.debug(f"当前设置的登录方案: {config.Login.Method}")
         self._current_login_triggered_via_ipc = from_ipc
-        automation_manager.finished.connect(self._on_login_finished)
-        automation_manager.failed.connect(lambda msg: self._on_login_finished(success=False, error_message=msg))
-
         if config.StatusOverlay.Enabled:
             screen_height = utils.get_screen_size()[1]
             login_window_buttom = utils.calc_relative_login_window_position(
