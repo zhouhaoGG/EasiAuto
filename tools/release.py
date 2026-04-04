@@ -46,7 +46,7 @@ from qfluentwidgets import (
 MANIFEST_REPO = "hxabcd/EasiAutoWeb"
 MANIFEST_FILE_PATH = "public/update.json"
 OWNER_REPO = os.getenv("GITHUB_REPOSITORY", "hxabcd/EasiAuto")
-
+TARGET_BRANCH = "master"
 
 def get_sha256(file_path: Path) -> str:
     """计算文件的 SHA256 哈希值"""
@@ -122,7 +122,7 @@ def create_github_release(version: str, body: str, is_dev: bool, is_draft: bool 
     url = f"https://api.github.com/repos/{OWNER_REPO}/releases"
     data = {
         "tag_name": f"v{version}",
-        "target_commitish": "master",
+        "target_commitish": TARGET_BRANCH,
         "name": f"EasiAuto v{version}",
         "body": body,
         "draft": is_draft,
