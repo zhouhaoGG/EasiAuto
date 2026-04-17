@@ -43,7 +43,7 @@ def get_scale() -> float:
 
 
 def get_screen_size() -> tuple[int, int]:
-    """获取屏幕尺寸"""
+    """获取屏幕尺寸（逻辑坐标）"""
     app = cast(QApplication, QApplication.instance())
     if app is None:
         raise RuntimeError("QApplication 未初始化")
@@ -52,8 +52,14 @@ def get_screen_size() -> tuple[int, int]:
         raise RuntimeError("无法获取主屏幕信息")
 
     geo = screen.geometry()
+    return (geo.width(), geo.height())
+
+
+def get_screen_size_physical() -> tuple[int, int]:
+    """获取屏幕尺寸（物理像素）"""
+    w, h = get_screen_size()
     scale = get_scale()
-    return (int(geo.width() * scale)), int(geo.height() * scale)
+    return (int(w * scale), int(h * scale))
 
 
 class Point:
@@ -114,7 +120,7 @@ def calc_relative_login_window_position(
         base_size (tuple[int, int]): 原始位置与窗口大小所基于的屏幕分辨率
     """
 
-    screen = Point(get_screen_size())
+    screen = Point(get_screen_size_physical())
     base_screen = Point(base_size)
     window = Point(window_size)
     window_position = (base_screen - window) / 2

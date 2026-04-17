@@ -288,7 +288,7 @@ class Launcher:
         logger.debug(f"当前设置的登录方案: {config.Login.Method}")
         self._current_login_triggered_via_ipc = from_ipc
         if config.StatusOverlay.Enabled:
-            screen_height = utils.get_screen_size()[1]
+            screen_height = utils.get_screen_size_physical()[1]
             login_window_buttom = utils.calc_relative_login_window_position(
                 utils.Point(config.Login.Position.AgreementCheckbox),
                 window_size=config.Login.Position.LoginWindowSize,

@@ -6,7 +6,7 @@ from EasiAuto.common.utils import (
     Point,
     calc_relative_login_window_position,
     get_scale,
-    get_screen_size,
+    get_screen_size_physical,
 )
 
 from .base import PyAutoGuiBaseAutomator
@@ -34,7 +34,7 @@ class FixedAutomator(PyAutoGuiBaseAutomator):
         return point.x, point.y
 
     def login(self):
-        screen_size = get_screen_size()
+        screen_size = get_screen_size_physical()
         scale = get_scale()
 
         # 进入登录界面

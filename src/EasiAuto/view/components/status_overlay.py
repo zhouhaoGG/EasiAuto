@@ -69,7 +69,7 @@ class StatusOverlayBase(QWidget, metaclass=QABCMeta):
         scale = get_scale()
 
         x = (w - self.width()) // 2
-        y = h - int(54 * scale) - self.height()
+        y = h - int(54 / scale) - self.height()
 
         self.move(x, y)
 

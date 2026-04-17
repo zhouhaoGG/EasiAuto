@@ -13,7 +13,7 @@ from loguru import logger
 from PySide6.QtCore import QThread, Signal
 
 from EasiAuto.common.config import config
-from EasiAuto.common.utils import Point, QABCMeta, get_scale, get_screen_size, kill_process, switch_window
+from EasiAuto.common.utils import Point, QABCMeta, get_scale, get_screen_size_physical, kill_process, switch_window
 
 
 class LoginCancelled(Exception):
@@ -251,7 +251,7 @@ class PyAutoGuiBaseAutomator(BaseAutomator):
         super().__init__(account, password)
 
         self.compatibility_mode: bool = False
-        screen_size = get_screen_size()
+        screen_size = get_screen_size_physical()
         scale = get_scale()
         if config.Login.ForceEnableScaling:
             logger.warning("已强制启用兼容模式输入")
