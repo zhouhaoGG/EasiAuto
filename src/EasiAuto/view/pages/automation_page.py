@@ -410,7 +410,6 @@ class AutomationPage(QWidget):
         if reason in {
             "automation_saved",
             "automation_deleted",
-            "bindings_changed",
             "profile_changed",
         }:
             self._schedule_binding_reload()

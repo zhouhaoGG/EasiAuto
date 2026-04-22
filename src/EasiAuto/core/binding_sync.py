@@ -2,12 +2,14 @@ from __future__ import annotations
 
 import uuid
 from abc import ABC, abstractmethod
+from collections.abc import Mapping
 from dataclasses import dataclass
 
 from loguru import logger
+from pydantic import BaseModel
 
 from EasiAuto.common.config import config
-from EasiAuto.common.profile import BindingItem, EasiAutomation, Profile, SubjectRef
+from EasiAuto.common.profile import EasiAutomation, profile
 from EasiAuto.integrations.classisland_manager import (
     CiSubject,
     ManagedCiAutomation,
@@ -15,6 +17,21 @@ from EasiAuto.integrations.classisland_manager import (
 from EasiAuto.integrations.classisland_manager import (
     classisland_manager as ci_manager,
 )
+
+
+class SubjectRef(BaseModel):
+    """通用科目标识"""
+
+    name: str
+    provider: str
+    id: str | None = None
+
+
+@dataclass(slots=True)
+class SyncContext:
+    subjects: dict[str, CiSubject]
+    managed_by_subject: dict[str, ManagedCiAutomation]
+    used_guids: set[str]
 
 
 class BindingSyncBackendBase(ABC):
@@ -28,7 +45,12 @@ class BindingSyncBackendBase(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def sync(self, profile_data: Profile) -> bool:
+    def get_binding_map(self) -> dict[str, str]:
+        """读取当前绑定关系 (subject_id -> automation_id)"""
+        raise NotImplementedError
+
+    @abstractmethod
+    def sync(self, binding_map: Mapping[str, str | None]) -> bool:
         raise NotImplementedError
 
     def _set_errors(self, errors: list[str]) -> bool:
@@ -37,14 +59,6 @@ class BindingSyncBackendBase(ABC):
             logger.warning(f"绑定同步失败: {'；'.join(errors)}")
             return False
         return True
-
-
-@dataclass(slots=True)
-class SyncTarget:
-    binding: BindingItem
-    subject_id: str
-    automation: EasiAutomation
-    subject: CiSubject
 
 
 class ClassIslandBindingBackend(BindingSyncBackendBase):
@@ -66,8 +80,30 @@ class ClassIslandBindingBackend(BindingSyncBackendBase):
 
         return [SubjectRef(name=item.name, provider=self.provider, id=item.id) for item in ci_manager.get_subjects()]
 
-    def sync(self, profile_data: Profile) -> bool:
-        """执行与 ClassIsland 的同步操作"""
+    def get_binding_map(self, reload: bool = False) -> dict[str, str]:
+        """读取当前绑定关系（subject_id -> automation_id）"""
+        if not ci_manager:
+            return {}
+
+        if reload:
+            ci_manager.reload()
+
+        bindings: dict[str, str] = {}
+        for item in ci_manager.get_automations():
+            automation_id = item.id
+            if not item.subject_id or not automation_id:
+                continue
+            if item.subject_id in bindings:
+                # NOTE: 当前重复科目冲突仅保留首条，后续可扩展显式冲突处理策略。
+                continue
+            bindings[item.subject_id] = automation_id
+        return bindings
+
+    def sync(self, binding_map: Mapping[str, str | None]) -> bool:
+        """执行与 ClassIsland 的同步操作
+        Args:
+            binding_map: 目标绑定关系 (subject_id -> automation_id)
+        """
         errors: list[str] = []
 
         if not ci_manager:
@@ -75,120 +111,83 @@ class ClassIslandBindingBackend(BindingSyncBackendBase):
             return self._set_errors(errors)
 
         ci_manager.reload()
+        context = self._prepare_context()
 
-        automations = list(ci_manager.get_automations())
-        automation_index = {auto.guid: auto for auto in automations}
-        subject_index: dict[str, CiSubject] = {item.id: item for item in ci_manager.get_subjects()}
-        all_bindings = profile_data.list_bindings()
+        resolved_bindings = self._resolve_bindings(binding_map, context)
+        automations = self._build_automations(resolved_bindings, context)
+        ok = ci_manager.save_automations(automations)
 
-        # 规范化并过滤待同步绑定
-        desired_bindings = self._build_desired_bindings(profile_data, all_bindings, subject_index)
-
-        # 处理现有自动化配置
-        managed_by_subject: dict[str, ManagedCiAutomation] = {}
-        for item in automations:
-            managed_by_subject[item.subject_id] = item
-
-        used_guids: set[str] = set()
-        desired_automations: list[ManagedCiAutomation] = []
-
-        # 按解析结果构建最终自动化配置
-        for target in desired_bindings:
-            existing = self._resolve_existing(
-                binding=target.binding,
-                subject_id=target.subject_id,
-                automation_index=automation_index,
-                managed_by_subject=managed_by_subject,
-                used_guids=used_guids,
-            )
-
-            guid = existing.guid if existing else str(uuid.uuid4())
-            used_guids.add(guid)
-            pretime = existing.pretime if existing else config.ClassIsland.DefaultPreTime
-
-            built = ManagedCiAutomation(
-                guid=guid,
-                name=target.automation.get_automation_name(target.subject.name),
-                is_enabled=target.automation.enabled,
-                subject_id=target.subject_id,
-                pretime=pretime,
-                args=f"login --id {target.automation.id}",
-            )
-
-            # 更新绑定关系
-            target.binding.id = guid
-            desired_automations.append(built)
-
-        if not ci_manager.save_automations(desired_automations):
+        if not ok:
             errors.append("保存 ClassIsland 自动化配置失败")
 
         return self._set_errors(errors)
 
-    def _resolve_existing(
+    def _prepare_context(self) -> SyncContext:
+        """重载配置并建立索引, 准备上下文"""
+        automations = list(ci_manager.get_automations())
+        subjects = {item.id: item for item in ci_manager.get_subjects()}
+
+        managed_by_subject: dict[str, ManagedCiAutomation] = {}
+        for item in automations:
+            managed_by_subject.setdefault(item.subject_id, item)
+
+        return SyncContext(
+            subjects=subjects,
+            managed_by_subject=managed_by_subject,
+            used_guids=set(),
+        )
+
+    def _resolve_bindings(
+        self, binding_map: Mapping[str, str | None], context: SyncContext
+    ) -> list[tuple[CiSubject, EasiAutomation]]:
+        normalized: list[tuple[CiSubject, EasiAutomation]] = []
+        for subject_id, automation_id in binding_map.items():
+            if not subject_id or not automation_id:
+                continue
+            subject = context.subjects.get(subject_id)
+            automation = profile.get_automation(automation_id)
+            if subject is None or automation is None:
+                continue
+            normalized.append((subject, automation))
+        return normalized
+
+    def _build_automations(
         self,
-        binding: BindingItem,
-        subject_id: str,
-        automation_index: dict[str, ManagedCiAutomation],
-        managed_by_subject: dict[str, ManagedCiAutomation],
-        used_guids: set[str],
-    ) -> ManagedCiAutomation | None:
-        if binding_id := binding.id:
-            if binding_id in used_guids:
-                return None
-            return automation_index.get(binding_id)
+        bindings: list[tuple[CiSubject, EasiAutomation]],
+        context: SyncContext,
+    ) -> list[ManagedCiAutomation]:
+        """根据目标绑定生成最终自动化列表"""
+        output: list[ManagedCiAutomation] = []
 
-        if (existing := managed_by_subject.get(subject_id)) and existing.guid not in used_guids:
-            return existing
+        for subject, automation in bindings:
+            # 尽可能复用已有数据
+            existing = self._resolve_existing(subject.id, context)
+            name = existing.name if existing else automation.get_automation_name(subject_name=subject.name)
+            guid = existing.guid if existing else str(uuid.uuid4())
+            pretime = existing.pretime if existing else config.ClassIsland.DefaultPreTime
+            context.used_guids.add(guid)
 
-        return None
-
-    def _build_desired_bindings(
-        self,
-        profile_data: Profile,
-        bindings: list[BindingItem],
-        subject_index: dict[str, CiSubject],
-    ) -> list[SyncTarget]:
-        """构建可同步绑定列表（保持输入顺序，重复科目仅保留首条）"""
-        desired: list[SyncTarget] = []
-        seen_subject_ids: set[str] = set()
-
-        for binding in bindings:
-            if binding.subject.provider != self.provider:
-                continue
-
-            subject_id = self._resolve_subject_id(binding, subject_index)
-            if subject_id is None:
-                continue
-            if subject_id in seen_subject_ids:
-                continue
-            subject = subject_index.get(subject_id)
-            if subject is None:
-                continue
-
-            automation = profile_data.get_automation(binding.automation_id)
-            if automation is None:
-                continue
-            if automation.account.strip() == "" or automation.password.strip() == "":
-                continue
-
-            seen_subject_ids.add(subject_id)
-            desired.append(
-                SyncTarget(
-                    binding=binding,
-                    subject_id=subject_id,
-                    automation=automation,
-                    subject=subject,
+            output.append(
+                ManagedCiAutomation(
+                    guid=guid,
+                    name=name,
+                    is_enabled=automation.enabled,
+                    subject_id=subject.id,
+                    pretime=pretime,
+                    args=f"login --id {automation.id}",
                 )
             )
 
-        return desired
+        return output
 
-    @staticmethod
-    def _resolve_subject_id(binding: BindingItem, subject_map: dict[str, CiSubject]) -> str | None:
-        """解析科目 ID"""
-        subject = binding.subject
-
-        if subject.id and subject.id in subject_map:
-            return subject.id
+    def _resolve_existing(
+        self,
+        subject_id: str,
+        context: SyncContext,
+    ) -> ManagedCiAutomation | None:
+        """根据 subject_id 查找可复用的现有自动化"""
+        subject_existing = context.managed_by_subject.get(subject_id)
+        if subject_existing and subject_existing.guid not in context.used_guids:
+            return subject_existing
 
         return None

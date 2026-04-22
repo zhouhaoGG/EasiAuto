@@ -7,7 +7,7 @@ from typing import Any, Literal
 
 from cryptography.fernet import InvalidToken
 from loguru import logger
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from PySide6.QtCore import QObject, Signal
 
@@ -23,8 +23,6 @@ ProfileChangeReason = Literal[
     "profile_changed",
     "automation_saved",
     "automation_deleted",
-    "bindings_local_updated",
-    "bindings_changed",
     "encryption_changed",
 ]
 
@@ -66,6 +64,13 @@ class EasiAutomation(BaseModel):
     enabled: bool = Field(default=True, description="是否启用")
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
 
+    @field_validator("account", "password")
+    @classmethod
+    def not_empty(cls, v: str) -> str:
+        if not v.strip():
+            raise ValueError("账号和密码不能为空")
+        return v
+
     @property
     def display_name(self) -> str | None:
         return self.name or self.account_name
@@ -94,22 +99,6 @@ class EasiAutomation(BaseModel):
         return f"希沃自动登录（{label}）"
 
 
-class SubjectRef(BaseModel):
-    """通用科目标识"""
-
-    name: str
-    provider: str
-    id: str | None = None  # 该科目对应的外部科目 id
-
-
-class BindingItem(BaseModel):
-    """SubjectRef -> EasiAutomation 单向绑定"""
-
-    subject: SubjectRef
-    automation_id: str
-    id: str | None = None  # 该绑定对应的外部自动化 id
-
-
 class Profile(BaseModel):
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
@@ -117,7 +106,6 @@ class Profile(BaseModel):
     encryption_enabled: bool = Field(default=True, description="是否启用档案密码加密")
 
     automations: list[EasiAutomation] = Field(default_factory=list)
-    bindings: list[BindingItem] = Field(default_factory=list)
     notifier: ProfileNotifier = Field(default_factory=ProfileNotifier, exclude=True)
 
     # 存储
@@ -143,23 +131,11 @@ class Profile(BaseModel):
                 logger.error(f"解密账号 {item.account} 的密码失败, 已清空密码: {e}")
                 item.password = ""
 
-    def cleanup_invalid_bindings(self) -> int:
-        """清理指向无效自动登录档案的关联"""
-        valid_profile_ids = {item.id for item in self.automations}
-        before = len(self.bindings)
-        self.bindings = [item for item in self.bindings if item.automation_id in valid_profile_ids]
-
-        removed = before - len(self.bindings)
-        if removed > 0:
-            logger.warning(f"清理了 {removed} 条无效关联")
-        return removed
-
     def save(self, reason: ProfileChangeReason = "profile_changed") -> None:
         path = PROFILE_PATH
 
         try:
             path.parent.mkdir(parents=True, exist_ok=True)
-            self.cleanup_invalid_bindings()
             payload = self._dump_payload()
             path.write_text(
                 json.dumps(payload, ensure_ascii=False, indent=4),
@@ -184,7 +160,6 @@ class Profile(BaseModel):
 
             loaded = cls(**raw)
             loaded._decrypt_automation_passwords()
-            loaded.cleanup_invalid_bindings()
             return loaded
         except AssertionError as e:
             logger.warning(f"档案版本不兼容, 按新结构强制重建: {e}")
@@ -222,61 +197,8 @@ class Profile(BaseModel):
         i = self._find_automation_index(automation_id)
         if i == -1:
             return False
-        self._clear_bindings_for_automation(self.automations[i].id)
         del self.automations[i]
         return True
-
-    # 绑定管理
-
-    def _find_binding_index(self, subject: SubjectRef) -> int:
-        if subject.id:
-            for i, item in enumerate(self.bindings):
-                if item.subject.id == subject.id:
-                    return i
-
-        # 若无法通过 id 寻找科目，回退到名称查找
-        for i, item in enumerate(self.bindings):
-            if item.subject.name == subject.name:
-                return i
-
-        return -1
-
-    def list_bindings(self) -> list[BindingItem]:
-        return self.bindings.copy()
-
-    def get_automation_id_by_subject(self, subject: SubjectRef) -> str | None:
-        i = self._find_binding_index(subject)
-        if i == -1:
-            return None
-        binding = self.bindings[i]
-
-        return binding.automation_id if binding else None
-
-    def get_subjects_by_automation(self, automation_id: str) -> list[SubjectRef]:
-        return [item.subject for item in self.bindings if item.automation_id == automation_id]
-
-    def set_binding(self, subject: SubjectRef, automation_id: str | None, id: str | None = None) -> None:
-        i = self._find_binding_index(subject)
-
-        if not automation_id:  # 移除
-            if i != -1:
-                del self.bindings[i]
-            return
-
-        if i != -1:  # 修改
-            existing = self.bindings[i]
-            existing.subject = subject
-            existing.automation_id = automation_id
-            if id is not None:
-                existing.id = id
-        else:  # 创建
-            self.bindings.append(BindingItem(subject=subject, automation_id=automation_id, id=id))
-
-    def clear_bindings(self) -> None:
-        self.bindings.clear()
-
-    def _clear_bindings_for_automation(self, profile_id: str) -> None:
-        self.bindings = [item for item in self.bindings if item.automation_id != profile_id]
 
 
 profile = Profile.load()

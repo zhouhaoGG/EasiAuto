@@ -242,10 +242,10 @@ class ProfileCard(CardWidget):
         self._automation_id = automation.id
         self.name_label.setText(self.automation.display_name or "未命名自动化")
         self.detail_label.setText(self.automation.detail_name or "")
-        subjects = profile.get_subjects_by_automation(automation.id)
-        tags = [subject.name for subject in subjects]
-        self._update_subjects(tags)
         self.enabled_switch.setChecked(automation.enabled)
+
+    def set_subject_tags(self, tags: list[str]):
+        self._update_subjects(tags)
 
     def _on_enabled_changed(self, enabled: bool):
         if self._automation_id:
@@ -349,8 +349,9 @@ class ProfileManagePage(QWidget):
         if not ci_manager:
             return
 
-        ok = self.binding_backend.sync(profile)
-        profile.save(reason="bindings_changed")
+        # 读取当前 CI 绑定关系并提交，确保档案信息变更后自动化配置同步刷新
+        desired_binding_map = self.binding_backend.get_binding_map()
+        ok = self.binding_backend.sync(desired_binding_map)
 
         if not ok:
             errors = self.binding_backend.last_errors
@@ -374,6 +375,7 @@ class ProfileManagePage(QWidget):
 
         for automation in profile.list_automations():
             self._add_automation_item(automation)
+        self.refresh_binding_display()
 
     def _add_automation_item(self, automation: EasiAutomation):
         item = QListWidgetItem(self.auto_list)
@@ -576,6 +578,7 @@ class ProfileManagePage(QWidget):
         return False
 
     def refresh_binding_display(self):
+        subject_tags_map = self._build_subject_tags_map()
         for i in range(self.auto_list.count()):
             item = self.auto_list.item(i)
             automation: EasiAutomation | None = item.data(Qt.ItemDataRole.UserRole)
@@ -583,12 +586,25 @@ class ProfileManagePage(QWidget):
             if not isinstance(item_widget, ProfileCard) or automation is None:
                 continue
             item_widget.update_display(automation)
+            item_widget.set_subject_tags(subject_tags_map.get(automation.id, []))
+
+    def _build_subject_tags_map(self) -> dict[str, list[str]]:
+        if not ci_manager:
+            return {}
+
+        subjects = self.binding_backend.list_subjects()
+        subject_name_map = {item.id: item.name for item in subjects if item.id}
+        binding_map = self.binding_backend.get_binding_map()
+
+        subject_tags_map: dict[str, list[str]] = {}
+        for subject_id, automation_id in binding_map.items():
+            if subject_name := subject_name_map.get(subject_id):
+                subject_tags_map.setdefault(automation_id, []).append(subject_name)
+        return subject_tags_map
 
     def _on_profile_model_changed(self, reason: ProfileChangeReason):
         if reason in {"automation_saved", "automation_deleted"}:
             self._sync_bindings()
-            return
-        if reason == "bindings_changed":
             self.refresh_binding_display()
 
 

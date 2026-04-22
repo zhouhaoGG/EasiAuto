@@ -201,12 +201,6 @@ class ClassIslandManager:
     def _signature(raw: list[dict]) -> str:
         return json.dumps(raw, ensure_ascii=False, sort_keys=True)
 
-    def _get_subject_name_by_id(self, subject_id: str) -> str | None:
-        """根据科目 ID 获取科目名称"""
-        subjects = self.ci_profile.get("Subjects", {})
-        subject_data = subjects.get(subject_id)
-        return subject_data.get("Name") if subject_data else None
-
     def reload(self, emit_if_changed: bool = True):
         """重新加载所有配置"""
         try:
@@ -228,7 +222,6 @@ class ClassIslandManager:
         self.unmanaged_automations = []
         self.managed_automations = []
         imported_account = set()
-        migrated_bindings = False
         for raw in self.ci_automations_raw:
             try:
                 if raw.get("ActionSet", {}).get("Name", "").startswith(EA_PREFIX):

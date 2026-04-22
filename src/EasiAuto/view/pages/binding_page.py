@@ -21,8 +21,8 @@ from qfluentwidgets import (
     VerticalSeparator,
 )
 
-from EasiAuto.common.profile import EasiAutomation, SubjectRef, profile
-from EasiAuto.core.binding_sync import ClassIslandBindingBackend
+from EasiAuto.common.profile import EasiAutomation, profile
+from EasiAuto.core.binding_sync import ClassIslandBindingBackend, SubjectRef
 from EasiAuto.view.utils import get_main_container
 
 
@@ -265,13 +265,6 @@ class BindingPage(QWidget):
         return f"{subject.provider}:name:{subject.name.strip().lower()}"
 
     @staticmethod
-    def _binding_keys(subject_ref: SubjectRef) -> list[str]:
-        keys = [f"{subject_ref.provider}:name:{subject_ref.name.strip().lower()}"]
-        if subject_ref.id:
-            keys.insert(0, f"{subject_ref.provider}:{subject_ref.id}")
-        return keys
-
-    @staticmethod
     def _profile_display_name(automation: EasiAutomation) -> str:
         label = automation.display_name or "未命名档案"
         if not automation.enabled:
@@ -289,14 +282,14 @@ class BindingPage(QWidget):
     def _clear_subject_grid(self):
         while self.subject_grid.count():
             item = self.subject_grid.takeAt(0)
-            widget = item.widget()
+            widget = item.widget()  # type: ignore
             if widget:
                 widget.deleteLater()
 
     def _clear_profile_cards(self):
         while self.profile_layout.count():
             item = self.profile_layout.takeAt(0)
-            widget = item.widget()
+            widget = item.widget()  # type: ignore
             if widget:
                 widget.deleteLater()
 
@@ -326,7 +319,7 @@ class BindingPage(QWidget):
             # 清空布局位置，但不销毁复用控件
             while self.subject_grid.count():
                 item = self.subject_grid.takeAt(0)
-                widget = item.widget()
+                widget = item.widget()  # type: ignore
                 if widget:
                     widget.hide()
 
@@ -334,7 +327,7 @@ class BindingPage(QWidget):
                 self.subject_divider = self._build_subject_divider()
 
             current_grid_row = 0
-            for i, (key, row) in enumerate(bound_rows):
+            for i, (key, _row) in enumerate(bound_rows):
                 card = self.subject_cards[key]
                 self.subject_grid.addWidget(card, current_grid_row + i // 2, i % 2)
                 card.show()
@@ -351,7 +344,7 @@ class BindingPage(QWidget):
             if bound_rows and unbound_rows:
                 current_grid_row += 1
 
-            for i, (key, row) in enumerate(unbound_rows):
+            for i, (key, _row) in enumerate(unbound_rows):
                 card = self.subject_cards[key]
                 self.subject_grid.addWidget(card, current_grid_row + i // 2, i % 2)
                 card.show()
@@ -490,10 +483,12 @@ class BindingPage(QWidget):
         self.subject_rows.clear()
         self.current_subject_key = None
 
+        # 先读取科目，再读取当前绑定映射，统一由 Backend 提供事实源。
         subjects = self.backend.list_subjects(reload=reload)
+        binding_map = self.backend.get_binding_map()
         for i, subject in enumerate(subjects):
             key = self._subject_key(subject)
-            automation_id = profile.get_automation_id_by_subject(subject)
+            automation_id = binding_map.get(subject.id) if subject.id else None
             self.subject_rows[key] = _SubjectRow(
                 subject=subject,
                 automation_id=automation_id,
@@ -513,25 +508,13 @@ class BindingPage(QWidget):
         self.reload(reload=True)
 
     def _persist_and_sync(self):
-        old_guid_lookup: dict[str, str | None] = {}
-        for binding in profile.list_bindings():
-            for key in self._binding_keys(binding.subject):
-                old_guid_lookup[key] = binding.id
-
-        profile.clear_bindings()
-        for key, row in self._ordered_subject_rows():
-            if not row.automation_id:
+        # 从 UI 当前行状态生成目标绑定映射并直接提交给 Backend
+        desired_binding_map: dict[str, str | None] = {}
+        for _, row in self._ordered_subject_rows():
+            if not row.subject.id:
                 continue
-            profile.set_binding(
-                subject=row.subject,
-                automation_id=row.automation_id,
-                id=old_guid_lookup.get(key),
-            )
-
-        profile.save(reason="bindings_local_updated")
-
-        ok = self.backend.sync(profile)
-        profile.save(reason="bindings_changed")
+            desired_binding_map[row.subject.id] = row.automation_id
+        ok = self.backend.sync(desired_binding_map)
 
         if not ok:
             errors = self.backend.last_errors
