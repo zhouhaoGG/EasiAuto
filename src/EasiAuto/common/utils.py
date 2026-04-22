@@ -4,6 +4,7 @@ import os
 import signal
 import sys
 from abc import ABCMeta
+from contextlib import suppress
 from pathlib import Path
 from typing import NoReturn, cast
 
@@ -202,9 +203,9 @@ def migrate_desktop_shortcut_icon() -> int:
     old_icon_norm = _normalize_windows_path(old_icon_path)
     new_icon_norm = _normalize_windows_path(new_icon_path)
 
-    # 关键步骤：扫描桌面所有快捷方式，仅处理目标程序为 EasiAuto 的项。
+    # 扫描桌面所有快捷方式，仅处理目标程序为 EasiAuto 的项。
     for lnk_path in desktop_path.glob("*.lnk"):
-        try:
+        with suppress(Exception):
             shortcut = shell.CreateShortcut(str(lnk_path))
 
             target_path = (shortcut.TargetPath or "").strip()
@@ -223,8 +224,6 @@ def migrate_desktop_shortcut_icon() -> int:
                 migrated_count += 1
             elif current_icon_norm == new_icon_norm:
                 continue
-        except Exception as e:
-            logger.warning(f"迁移快捷方式图标失败 ({lnk_path.name}): {e}")
 
     if migrated_count > 0:
         logger.success(f"已迁移 {migrated_count} 个桌面快捷方式图标")

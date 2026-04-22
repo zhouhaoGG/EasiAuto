@@ -24,9 +24,9 @@ class ArgvIpcServer(QObject):
         # 清理可能遗留的旧 server 名称
         QLocalServer.removeServer(self.server_name)
         if not self._server.listen(self.server_name):
-            logger.error(f"启动 IPC 服务失败: {self.server_name}")
+            logger.error("启动 IPC 服务失败")
             return False
-        logger.debug(f"IPC 服务已启动: {self.server_name}")
+        logger.debug("IPC 服务已启动")
         return True
 
     def stop(self) -> None:
