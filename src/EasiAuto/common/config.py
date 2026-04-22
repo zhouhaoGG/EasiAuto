@@ -22,6 +22,7 @@ from pydantic.fields import FieldInfo
 
 from PySide6.QtGui import QColor
 
+from EasiAuto import __version__
 from EasiAuto.common.consts import CONFIG_PATH, IS_FULL
 
 
@@ -635,13 +636,15 @@ class Config(ConfigModel):
         backup_obj = deepcopy(obj)
 
         try:
-            if last_version <= Version("1.1.3"):
+            transfered = False
+            if last_version <= Version("1.1.3"):  # noqa: SIM102
+                transfered = True
                 if obj["Login"]["Directly"]:
                     del obj["Login"]["Directly"]
                     obj["Login"]["IsIwb"] = False
-                logger.success("成功从 v1.1.3 前迁移配置")
-            # elif last_version <= Version("1.1.4"):
-            #     ...
+
+            if transfered:
+                logger.info(f"已迁移配置 ({last_version} -> {__version__})")
 
             return obj
         except Exception as e:

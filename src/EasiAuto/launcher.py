@@ -32,6 +32,7 @@ from EasiAuto.common.utils import (
     get_screen_size,
     get_screen_size_physical,
     init_exit_signal_handlers,
+    migrate_desktop_shortcut_icon,
     stop,
 )
 from EasiAuto.core.automator.manager import automation_manager
@@ -422,21 +423,31 @@ class Launcher:
         if command == "skip":
             return
 
+        last_version: Version | None = None
         if config.Update.LastVersion != "Unknown":
             try:
                 last_version = Version(config.Update.LastVersion)
             except Exception as e:
                 logger.warning(f"解析上个版本时发生异常: {e}")
-            else:
-                if last_version < Version(__version__):
-                    cleanup_update_cache()
-                    windows11toast.notify(
-                        title=f"已更新至 {__version__}",
-                        body=f"{config.Update.LastVersion} -> {__version__}",
-                        icon_placement=windows11toast.IconPlacement.APP_LOGO_OVERRIDE,
-                        icon_hint_crop=windows11toast.IconCrop.NONE,
-                        icon_src=get_resource("icons/EasiAuto.ico"),
-                    )
+
+        if last_version is None:
+            return
+
+        if last_version < Version("1.2.0b1"):
+            try:
+                migrate_desktop_shortcut_icon()
+            except Exception as e:
+                logger.warning(f"迁移桌面快捷方式图标时发生异常: {e}")
+
+        if last_version < Version(__version__):
+            cleanup_update_cache()
+            windows11toast.notify(
+                title=f"已更新至 {__version__}",
+                body=f"{config.Update.LastVersion} -> {__version__}",
+                icon_placement=windows11toast.IconPlacement.APP_LOGO_OVERRIDE,
+                icon_hint_crop=windows11toast.IconCrop.NONE,
+                icon_src=get_resource("icons/EasiAuto.ico"),
+            )
         config.Update.LastVersion = __version__
 
     def run(self) -> None:

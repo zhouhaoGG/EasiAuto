@@ -179,6 +179,58 @@ def create_shortcut(args: str, name: str, show_result_to: QWidget | None = None)
             )
 
 
+def _normalize_windows_path(path: str | Path) -> str:
+    """标准化 Windows 路径字符串，用于路径比较。"""
+    return os.path.normcase(os.path.normpath(str(path)))
+
+
+def migrate_desktop_shortcut_icon() -> int:
+    """迁移桌面 EasiAuto 快捷方式图标路径到新位置。"""
+    try:
+        shell = win32com.client.Dispatch("WScript.Shell")
+        desktop_path = Path(shell.SpecialFolders("Desktop"))
+    except Exception as e:
+        logger.warning(f"获取桌面路径失败，跳过快捷方式图标迁移: {e}")
+        return 0
+
+    old_icon_path = EA_RESDIR / "EasiAutoShortcut.ico"
+    new_icon_path = EA_RESDIR / "icons" / "EasiAutoShortcut.ico"
+    assert new_icon_path.exists()
+
+    migrated_count = 0
+    executable_path = _normalize_windows_path(EA_EXECUTABLE)
+    old_icon_norm = _normalize_windows_path(old_icon_path)
+    new_icon_norm = _normalize_windows_path(new_icon_path)
+
+    # 关键步骤：扫描桌面所有快捷方式，仅处理目标程序为 EasiAuto 的项。
+    for lnk_path in desktop_path.glob("*.lnk"):
+        try:
+            shortcut = shell.CreateShortcut(str(lnk_path))
+
+            target_path = (shortcut.TargetPath or "").strip()
+            if _normalize_windows_path(target_path) != executable_path:
+                continue
+
+            icon_location = (shortcut.IconLocation or "").strip()
+            if not icon_location:
+                continue
+            current_icon_path = icon_location.split(",", 1)[0].strip().strip('"')
+            current_icon_norm = _normalize_windows_path(current_icon_path)
+
+            if current_icon_norm == old_icon_norm:
+                shortcut.IconLocation = f"{new_icon_path},0"
+                shortcut.Save()
+                migrated_count += 1
+            elif current_icon_norm == new_icon_norm:
+                continue
+        except Exception as e:
+            logger.warning(f"迁移快捷方式图标失败 ({lnk_path.name}): {e}")
+
+    if migrated_count > 0:
+        logger.success(f"已迁移 {migrated_count} 个桌面快捷方式图标")
+    return migrated_count
+
+
 def switch_window(hwnd: int, press_key: bool = True):
     """通过句柄切换焦点"""
     try:
