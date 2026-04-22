@@ -1,4 +1,5 @@
 import json
+import re
 import shlex
 import subprocess
 from pathlib import Path
@@ -14,6 +15,7 @@ from pydantic import AliasPath, BaseModel, ConfigDict, Field
 from PySide6.QtCore import QObject, Signal
 
 from EasiAuto.common.consts import EA_EXECUTABLE, EA_PREFIX
+from EasiAuto.common.profile import EasiAutomation, profile
 from EasiAuto.common.utils import kill_process
 
 
@@ -45,13 +47,21 @@ class ManagedCiAutomation(BaseModel):
         )
 
     def get_arg(self, flag: str) -> str | None:
+        if not flag:
+            return None
+
         try:
             tokens = shlex.split(self.args)
-            if flag in tokens:
-                return tokens[tokens.index(flag) + 1]
+            for i, token in enumerate(tokens):
+                if f"--{flag}" in token or f"-{flag[0]}" in token:
+                    return tokens[i + 1]
         except (ValueError, IndexError):
             pass
         return None
+
+    def get_name(self) -> str | None:
+        match = re.match(rf"^{re.escape(EA_PREFIX)} .+ - (.+)$", self.name)
+        return match.group(1) if match else None
 
     @property
     def account(self) -> str | None:
@@ -191,6 +201,12 @@ class ClassIslandManager:
     def _signature(raw: list[dict]) -> str:
         return json.dumps(raw, ensure_ascii=False, sort_keys=True)
 
+    def _get_subject_name_by_id(self, subject_id: str) -> str | None:
+        """根据科目 ID 获取科目名称"""
+        subjects = self.ci_profile.get("Subjects", {})
+        subject_data = subjects.get(subject_id)
+        return subject_data.get("Name") if subject_data else None
+
     def reload(self, emit_if_changed: bool = True):
         """重新加载所有配置"""
         try:
@@ -211,15 +227,40 @@ class ClassIslandManager:
         """将原始自动化按照受管理状态分离"""
         self.unmanaged_automations = []
         self.managed_automations = []
+        imported_account = set()
+        migrated_bindings = False
         for raw in self.ci_automations_raw:
             try:
                 if raw.get("ActionSet", {}).get("Name", "").startswith(EA_PREFIX):
-                    self.managed_automations.append(ManagedCiAutomation(**raw))
+                    auto = ManagedCiAutomation(**raw)
+                    if auto.id and profile.get_automation(auto.id) is not None:
+                        self.managed_automations.append(auto)
+                    elif auto.account and auto.password:
+                        if auto.account in imported_account:
+                            continue
+
+                        new_auto = EasiAutomation(
+                            account=auto.account,
+                            password=auto.password,
+                            name=auto.get_name(),
+                        )
+                        profile.upsert_automation(new_auto)
+                        imported_account.add(auto.account)
+                        logger.info(f"已导入旧的自动化档案: {auto.account}")
+
+                        auto.args = f"--id {new_auto.id}"
+                        self.managed_automations.append(auto)
+                    else:
+                        logger.warning(f"无效的自动化: {auto.name}, 已清除")
                 else:
                     self.unmanaged_automations.append(raw)
             except Exception as e:
                 logger.warning(f"解析 ClassIsland 自动化时出错: {e}")
                 self.unmanaged_automations.append(raw)
+
+        if imported_account:
+            profile.save(reason="automation_saved")
+            self.save_automations(self.managed_automations)
 
     def get_automations(self) -> list[ManagedCiAutomation]:
         return self.managed_automations
