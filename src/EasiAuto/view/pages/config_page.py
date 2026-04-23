@@ -24,9 +24,10 @@ from qfluentwidgets import (
 )
 
 from EasiAuto.common import utils
+from EasiAuto.common.announcement import Announcement, announcement_service
 from EasiAuto.common.config import ConfigGroup, LoginMethod, config
 from EasiAuto.common.consts import IS_FULL
-from EasiAuto.view.components import SettingCard
+from EasiAuto.view.components import AnnouncementCard, SettingCard
 from EasiAuto.view.components.qfw_widgets import SettingCardGroup
 from EasiAuto.view.utils import get_main_container, set_enable_by
 
@@ -49,8 +50,11 @@ class ConfigPage(QWidget):
         logger.debug("初始化配置页")
 
         self.menu_index: weakref.WeakValueDictionary[str, SettingCardGroup] = weakref.WeakValueDictionary()
+        self._hidden_announcement_ids: set[str] = set()
 
         self.init_ui()
+        self._init_announcement_signals()
+        announcement_service.fetch_async()
 
     def init_ui(self):
         self.setObjectName("ConfigPage")
@@ -63,6 +67,14 @@ class ConfigPage(QWidget):
         title = TitleLabel("设置")
         title.setContentsMargins(36, 8, 0, 12)
         layout.addWidget(title)
+
+        self.announcement_container = QWidget(self)
+        self.announcement_container.setContentsMargins(0, 0, 0, 0)
+        self.announcement_layout = QVBoxLayout(self.announcement_container)
+        self.announcement_layout.setContentsMargins(36, 0, 36, 12)
+        self.announcement_layout.setSpacing(8)
+        self.announcement_container.hide()
+        layout.addWidget(self.announcement_container)
 
         self.scroll_area = SmoothScrollArea(self)
         self.scroll_area.setWidgetResizable(True)
@@ -85,6 +97,52 @@ class ConfigPage(QWidget):
         self.apply_attachment()
 
         self.content_layout.addStretch()
+
+    def _init_announcement_signals(self):
+        announcement_service.fetch_finished.connect(self._on_announcements_fetched)
+        announcement_service.fetch_failed.connect(self._on_announcements_failed)
+
+    def _on_announcements_fetched(self, announcements: object):
+        items = cast(list[Announcement], announcements)
+        visible_items = [item for item in items if item.id not in self._hidden_announcement_ids][:3]
+        self._render_announcements(visible_items)
+
+    def _on_announcements_failed(self, error: str):
+        logger.debug(f"设置页公告拉取失败，已静默跳过: {error}")
+        self._render_announcements([])
+
+    def _render_announcements(self, announcements: list[Announcement]):
+        while self.announcement_layout.count():
+            item = self.announcement_layout.takeAt(0)
+            widget = item.widget()  # type: ignore
+            if widget is not None:
+                widget.deleteLater()
+
+        if not announcements:
+            self.announcement_container.hide()
+            return
+
+        for announcement in announcements:
+            self.announcement_layout.addWidget(
+                AnnouncementCard(
+                    announcement,
+                    on_close=self._dismiss_announcement,
+                    parent=self.announcement_container,
+                )
+            )
+
+        self.announcement_container.show()
+
+    def _dismiss_announcement(self, announcement_id: str):
+        self._hidden_announcement_ids.add(announcement_id)
+
+        remaining_cards: list[Announcement] = []
+        for index in range(self.announcement_layout.count()):
+            widget = self.announcement_layout.itemAt(index).widget()  # type: ignore
+            if isinstance(widget, AnnouncementCard) and widget.announcement.id != announcement_id:
+                remaining_cards.append(widget.announcement)
+
+        self._render_announcements(remaining_cards)
 
     def _add_config_menu(self, config: ConfigGroup):
         """从配置生成设置菜单"""

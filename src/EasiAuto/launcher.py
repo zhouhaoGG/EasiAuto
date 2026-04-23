@@ -20,6 +20,7 @@ from qfluentwidgets import (
 )
 
 from EasiAuto import __version__
+from EasiAuto.common.announcement import announcement_service
 from EasiAuto.common.config import DownloadSource, UpdateMode, config
 from EasiAuto.common.consts import IPC_SERVER_NAME
 from EasiAuto.common.profile import profile
@@ -60,6 +61,7 @@ setThemeColor("#00C884")
 
 
 def update_statistics_before_exit():
+    announcement_service.shutdown()
     update_checker.shutdown()
 
     config.Statistics.TotalRunTime += (datetime.now(UTC) - config.Statistics.ThisInstanceLaunchTime).total_seconds()
