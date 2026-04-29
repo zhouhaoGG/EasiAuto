@@ -4,7 +4,7 @@ import time
 from argparse import ArgumentParser, Namespace
 from contextlib import contextmanager
 from datetime import UTC, datetime
-from typing import assert_never
+from typing import Any, assert_never
 
 import windows11toast
 from loguru import logger
@@ -107,6 +107,7 @@ class Launcher:
         self._post_login_overlay_done: bool = False
         self._post_login_update_done: bool = False
         self._post_login_update_thread: PostLoginUpdateThread | None = None
+        self._banyou_automator: Any | None = None  # 保存班级优化大师自动化器引用
         automation_manager.finished.connect(self._on_login_finished)
         automation_manager.failed.connect(self._on_login_failed)
 
@@ -145,6 +146,7 @@ class Launcher:
         login_target_group.add_argument("-a", "--account", help="账号")
         login_parser.add_argument("-p", "--password", help="密码（当使用 --account 时必填）")
         login_parser.add_argument("-m", "--manual", action="store_true", help="手动执行（不显示确认弹窗）")
+        login_parser.add_argument("--banyou", action="store_true", help="登录班级优化大师")
 
         subparsers.add_parser("settings", help="打开设置界面")
         subparsers.add_parser("skip", help="跳过下一次登录")
@@ -157,6 +159,11 @@ class Launcher:
         from_ipc = self._current_login_triggered_via_ipc
         self.login_running = False
         logger.info("登录任务已停止运行")
+
+        # 清理班级优化大师自动化器引用
+        if self._banyou_automator is not None:
+            self._banyou_automator.wait()  # 等待线程完成
+            self._banyou_automator = None
 
         # 关闭警示横幅
         if self.banner is not None:
@@ -222,7 +229,14 @@ class Launcher:
             stop()
 
     def _on_stop_automation(self) -> None:
-        automation_manager.stop()
+        """停止自动化任务"""
+        # 如果是班级优化大师登录，直接中断 BanyouAutomator
+        if self._banyou_automator is not None and self._banyou_automator.isRunning():
+            logger.info("正在停止班级优化大师登录任务")
+            self._banyou_automator.requestInterruption()
+        else:
+            # 否则使用默认的 automation_manager
+            automation_manager.stop()
         self.stop_requested = True
 
     def _resolve_login_credentials(self, args: Namespace) -> tuple[str, str] | None:
@@ -245,8 +259,64 @@ class Launcher:
         logger.error("参数错误: 使用 --account 时必须同时提供 --password")
         return None
 
+    def _start_banyou_login(self, args: Namespace) -> bool:
+        """开始班级优化大师登录任务"""
+        
+        from_ipc = self._ipc_context
+        
+        if self.login_running:
+            logger.warning("登录任务已在执行中, 拒绝新的 login 请求")
+            return False
+        
+        # 解析登录凭据（班级优化大师也需要账号密码）
+        credentials = self._resolve_login_credentials(args)
+        if credentials is None:
+            if not from_ipc:
+                stop(1)
+            return False
+        
+        account, password = credentials
+        
+        # 导入并使用班级优化大师自动化器
+        from EasiAuto.core.automator.banyou import BanyouAutomator
+        
+        # 显示状态浮窗（如果需要）
+        if config.StatusOverlay.Enabled:
+            try:
+                self.status_overlay = SmallStatusOverlay()  # 班级优化大师使用小浮窗
+                self.status_overlay.stop_clicked.connect(self._on_stop_automation)
+            except Exception as e:
+                logger.error(f"设置状态浮窗时出错, 跳过状态浮窗: {e}")
+        
+        # 创建并配置自动化器（保存为实例变量防止被垃圾回收）
+        self._banyou_automator = BanyouAutomator(account, password)
+        
+        # 连接信号
+        self._banyou_automator.started.connect(self.status_overlay.show if self.status_overlay else lambda: None)
+        self._banyou_automator.successed.connect(lambda: self._on_login_finished(success=True))
+        self._banyou_automator.interrupted.connect(lambda: self._on_login_finished(success=False))
+        self._banyou_automator.failed.connect(self._on_login_failed)
+        self._banyou_automator.task_updated.connect(self.status_overlay.set_task_text if self.status_overlay else lambda x: None)
+        self._banyou_automator.progress_updated.connect(self.status_overlay.set_progress_text if self.status_overlay else lambda x: None)
+        
+        if self.status_overlay:
+            self._banyou_automator.successed.connect(self.status_overlay.on_success)
+            self._banyou_automator.interrupted.connect(self.status_overlay.on_interrupted)
+            self._banyou_automator.failed.connect(self.status_overlay.on_failed)
+        
+        # 启动自动化器
+        self._current_login_triggered_via_ipc = from_ipc
+        self._banyou_automator.start()
+        
+        self.login_running = True
+        return True
+
     def _start_login(self, args: Namespace) -> bool:
         """开始登录任务"""
+        
+        # 如果是班级优化大师登录，使用专门的方法
+        if getattr(args, 'banyou', False):
+            return self._start_banyou_login(args)
 
         from_ipc = self._ipc_context
 
